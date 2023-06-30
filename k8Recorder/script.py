@@ -3,6 +3,8 @@ from k8Recorder.operators import podsOperators
 from k8Recorder.utils import set_logging
 import kubernetes as k8s
 import logging
+import asyncio
+import uvloop
 import click
 import kopf
 import os
@@ -11,6 +13,7 @@ OUTPUT_FODLER: os.PathLike
 INPUT_FILDER: os.PathLike
 PROM: PrometheusConnect
 
+
 @kopf.on.startup()
 async def k8s_tracker_startup(logger: logging, **kwargs):
     global PROM
@@ -18,6 +21,7 @@ async def k8s_tracker_startup(logger: logging, **kwargs):
     set_logging()
     PROM = PrometheusConnect(url="http://127.0.0.1:52030/", disable_ssl=True)
     logger.warn("Starting ...")
+    asyncio.create_task(record())
 
 
 @kopf.on.cleanup()
@@ -37,9 +41,11 @@ async def k8s_tracker_cleanup(logger: logging, **kwargs):
 #     await podsOperators.check_limits(operation=operation, **kwargs)
 
 
-@kopf.timer("pods", interval=5)
-async def record(**kwargs):
-    await podsOperators.record(OUTPUT_FODLER, PROM, **kwargs)
+# @kopf.timer(interval=5)
+async def record(interval: int=5):
+    while True:
+        await podsOperators.record(OUTPUT_FODLER, PROM)
+        await asyncio.sleep(interval)
 
 
 @click.command()
@@ -50,18 +56,18 @@ def run_operators(dumpto: os.PathLike, loadfrom: os.PathLike):
     if dumpto and loadfrom:
         logging.error(f"Can only load or dump, given both.")
         return None
-    dumpto = dumpto if dumpto else "./output"
+    dumpto = dumpto if dumpto else "./reocrded.csv"
     # check if folder exists
-    out_folder_exist: bool = os.path.isdir(dumpto) 
-    in_folder_exist: bool = os.path.isdir(loadfrom) if loadfrom else False
+    out_folder_exist: bool = os.path.isfile(dumpto)
+    in_folder_exist: bool = os.path.isfile(loadfrom) if loadfrom else False
     # check it
-    if not out_folder_exist: 
+    if not out_folder_exist:
         logging.warn(f" {dumpto} folder don't exist, creating it ...")
-        os.makedirs(dumpto)
-    if in_folder_exist and not in_folder_exist: 
+    if in_folder_exist and not in_folder_exist:
         logging.warn(f" {loadfrom} folder don't exist, creating it ...")
-        os.makedirs(loadfrom)
     OUTPUT_FODLER = dumpto
     INPUT_FILDER = loadfrom
+    # 
+    asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
     # run all operations
     kopf.run()

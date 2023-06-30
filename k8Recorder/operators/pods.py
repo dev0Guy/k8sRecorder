@@ -1,13 +1,10 @@
-from prometheus_api_client import PrometheusConnect
+from prometheus_api_client import PrometheusConnect, MetricSnapshotDataFrame
+from typing import Dict, Mapping, Tuple, List
 from k8Recorder._types import ContainerTypes
 from k8Recorder._types import PodTypes
 from k8Recorder.utils import resource_limit
-from typing import Dict, Mapping, Tuple
-import k8Recorder.query as k8s_queries
-from time import time
 import pandas as pd
 import logging
-import inspect
 import os
 
 
@@ -32,30 +29,24 @@ async def check_limits(
 async def record(
     outpath: os.PathLike,
     prom: PrometheusConnect,
-    uid: PodTypes.PodId,
-    name: PodTypes.PodName,
-    spec: PodTypes.PodSpec,
-    **kwargs,
 ):
-    # combine outputPath + name
-    filepath: os.PathLike = os.path.join(
-        outpath,
-        f"{name}.csv",
+    metrics_names: List[str] = prom.all_metrics()
+    metrics_tuples: List[Tuple[str, Dict]] = [
+        (name, prom.custom_query(query=f"sum(rate({name}[5m])) by (pod)"))
+        for name in metrics_names
+    ]
+    metrics_tuples: List[Tuple[str, pd.DataFrame]] = list(
+        map(
+            lambda x: (x[0], MetricSnapshotDataFrame(x[1])),
+            filter(lambda x: x[1], metrics_tuples),
+        )
     )
-    # get all custom queries
-    queries: Mapping["ConstName", "Queries"] = filter(
-        lambda x: x[0].isupper(), inspect.getmembers(k8s_queries.PodQueries)
-    )
-    # execute queries and get values
-    def query_exec(inp):
-        metric_name, query_str = inp
-        query = query_str.format(pod_name=name)
-        val = prom.custom_query(query)[0].get("value")[1]  # get only the value no time
-        return metric_name, val
-
-    row: Dict["metricName", "MetricValue"] = dict(map(query_exec, queries))
-    # append to csv
-    _record_into_csv(filepath, row)
+    for name, df in metrics_tuples:
+        df["metric_name"] = name
+    metrics_df = map(lambda x: x[1], metrics_tuples)
+    df: pd.DataFrame = pd.concat(metrics_df)
+    df.dropna(subset=["pod"], how="all", inplace=True)
+    _record_into_csv(outpath, df)
 
 
 async def replay_init(
@@ -94,12 +85,11 @@ def _get_pods_resources_limit(name: str, spec: Dict) -> Mapping:
     return limits_dicts
 
 
-def _record_into_csv(path: os.PathLike, row: dict):
-    row["Time"] = time()
+def _record_into_csv(path: os.PathLike, row: pd.DataFrame):
     file_exist = os.path.exists(path)
     if file_exist:
         df: pd.DataFrame = pd.read_csv(path)
-        df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+        df = pd.concat([df, row], ignore_index=True)
     else:
-        df = pd.DataFrame([row])
+        df = row
     df.to_csv(path, index=False)
