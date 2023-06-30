@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "k8stracker"
+name = "k8Recorder"
 version = "0.1.0"
 description = ""
 authors = ["dev0Guy <97923827+dev0Guy@users.noreply.github.com>"]
@@ -15,7 +15,7 @@ click = "^8.1.3"
 scipy = "^1.11.1"
 
 [tool.poetry.scripts]
-operators = "k8stracker.script:run_operators"
+operators = "k8Recorder.script:run_operators"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"

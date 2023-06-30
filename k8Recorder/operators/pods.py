@@ -1,9 +1,9 @@
 from prometheus_api_client import PrometheusConnect
-from k8stracker._types import ContainerTypes
-from k8stracker._types import PodTypes
-from k8stracker.utils import resource_limit
+from k8Recorder._types import ContainerTypes
+from k8Recorder._types import PodTypes
+from k8Recorder.utils import resource_limit
 from typing import Dict, Mapping, Tuple
-import k8stracker.query as k8s_queries
+import k8Recorder.query as k8s_queries
 from time import time
 import pandas as pd
 import logging

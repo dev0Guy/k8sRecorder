@@ -1,6 +1,6 @@
 from prometheus_api_client import PrometheusConnect
-from k8stracker.operators import podsOperators
-from k8stracker.utils import set_logging
+from k8Recorder.operators import podsOperators
+from k8Recorder.utils import set_logging
 import kubernetes as k8s
 import logging
 import click
