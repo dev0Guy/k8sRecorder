@@ -1,5 +1,4 @@
-from prometheus_api_client import PrometheusConnect, MetricSnapshotDataFrame
-from typing import Dict, Mapping, Tuple, List
+from typing import Dict, Mapping, Tuple
 from k8Recorder._types import ContainerTypes
 from k8Recorder._types import PodTypes
 from k8Recorder.utils import resource_limit
@@ -24,29 +23,6 @@ async def check_limits(
     )
     if len(all_containers) > len(containers_with_limits):
         logger.warning(f"Pod: {name} has container with no limits")
-
-
-async def record(
-    outpath: os.PathLike,
-    prom: PrometheusConnect,
-):
-    metrics_names: List[str] = prom.all_metrics()
-    metrics_tuples: List[Tuple[str, Dict]] = [
-        (name, prom.custom_query(query=f"sum(rate({name}[5m])) by (pod)"))
-        for name in metrics_names
-    ]
-    metrics_tuples: List[Tuple[str, pd.DataFrame]] = list(
-        map(
-            lambda x: (x[0], MetricSnapshotDataFrame(x[1])),
-            filter(lambda x: x[1], metrics_tuples),
-        )
-    )
-    for name, df in metrics_tuples:
-        df["metric_name"] = name
-    metrics_df = map(lambda x: x[1], metrics_tuples)
-    df: pd.DataFrame = pd.concat(metrics_df)
-    df.dropna(subset=["pod"], how="all", inplace=True)
-    _record_into_csv(outpath, df)
 
 
 async def replay_init(
@@ -83,13 +59,3 @@ def _get_pods_resources_limit(name: str, spec: Dict) -> Mapping:
         spec.get("containers", {}),
     )
     return limits_dicts
-
-
-def _record_into_csv(path: os.PathLike, row: pd.DataFrame):
-    file_exist = os.path.exists(path)
-    if file_exist:
-        df: pd.DataFrame = pd.read_csv(path)
-        df = pd.concat([df, row], ignore_index=True)
-    else:
-        df = row
-    df.to_csv(path, index=False)
