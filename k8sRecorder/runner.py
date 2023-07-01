@@ -1,6 +1,5 @@
 from prometheus_api_client import PrometheusConnect
-from k8Recorder.operators import podsOperators
-import k8Recorder.utils as utils
+from k8sRecorder._types.actions import ScriptAction
 import kubernetes as k8s
 import logging
 import asyncio
@@ -10,12 +9,14 @@ import kopf
 import os
 
 OUTPUT_FOLDER: os.PathLike
-INPUT_FOLDER: os.PathLike
+INPUT_FILE: os.PathLike
+SCRIPT_ACTION: ScriptAction
 PROM: PrometheusConnect
 ######################
-SETTINGS_FILE: os.PathLike = 'settings.csv'
-METRIC_FILE: os.PathLike = 'metrics.csv'
-DATA_FILE: os.PathLike = 'data.csv'
+SETTINGS_FILE: os.PathLike = "settings.csv"
+METRIC_FILE: os.PathLike = "metrics.csv"
+DATA_FILE: os.PathLike = "data.csv"
+
 
 @kopf.on.startup()
 async def k8s_tracker_startup(logger: logging, **kwargs):
@@ -24,7 +25,14 @@ async def k8s_tracker_startup(logger: logging, **kwargs):
     utils.set_logging()
     PROM = PrometheusConnect(url="http://127.0.0.1:56185", disable_ssl=True)
     logger.warn("Starting ...")
-    asyncio.create_task(record())
+    match SCRIPT_ACTION:
+        case ScriptAction.Record:
+            asyncio.create_task(record())
+        case ScriptAction.Replay:
+            asyncio.create_task(replay())
+        case _:
+            logging.error("Script Action Isn't defined proberly")
+            return
 
 
 @kopf.on.cleanup()
@@ -34,11 +42,11 @@ async def k8s_tracker_cleanup(logger: logging, **kwargs):
         OUTPUT_FOLDER,
         METRIC_FILE,
     )
-    setting_file_path : os.PathLike = os.path.join(
+    setting_file_path: os.PathLike = os.path.join(
         OUTPUT_FOLDER,
         SETTINGS_FILE,
     )
-    data_file_path : os.PathLike = os.path.join(
+    data_file_path: os.PathLike = os.path.join(
         OUTPUT_FOLDER,
         DATA_FILE,
     )
@@ -69,6 +77,21 @@ async def k8s_tracker_cleanup(logger: logging, **kwargs):
 
 
 async def record(interval: int = 5):
+    data_path: os.PathLike = INPUT_FILE
+    # create distribuition from csv file + scipy
+    # the time of the pod running
+    # the values of the pod
+    # randomize the distribuation for each one
+
+    # re
+    # while True:
+    #     logging.info("record epoch")
+    #     await utils.record(data_path, PROM)
+    #     logging.info("waiting for {interval}")
+    #     await asyncio.sleep(interval)
+
+
+async def record(interval: int = 5):
     output_file_path: os.PathLike = os.path.join(
         OUTPUT_FOLDER,
         METRIC_FILE,
@@ -84,22 +107,24 @@ async def record(interval: int = 5):
 @click.option("--dumpTo", help="Folder reocrd will be push into")
 @click.option("--loadFrom", help="Folder with all pod csv record files")
 def run_operators(dumpto: os.PathLike, loadfrom: os.PathLike):
-    global OUTPUT_FOLDER, INPUT_FOLDER
+    global OUTPUT_FOLDER, INPUT_FOLDER, SCRIPT_ACTION
     if dumpto and loadfrom:
         logging.error(f"Can only load or dump, given both.")
         return None
     dumpto = dumpto if dumpto else "./output"
     # check if folder exists
     out_folder_exist: bool = os.path.isdir(dumpto)
-    in_folder_exist: bool = os.path.isdir(loadfrom) if loadfrom else False
+    in_folder_exist: bool = os.path.isfile(loadfrom) if loadfrom else False
+    SCRIPT_ACTION = ScriptAction.Record if in_folder_exist else ScriptAction.Replay
     # alert if file doesn't exist
     if not out_folder_exist:
         logging.warn(f" {dumpto} folder don't exist, creating it ...")
         os.makedirs(dumpto)
-    if in_folder_exist and not in_folder_exist:
-        logging.eror(f" {loadfrom} folder don't exist, creating it ...")
+    if in_folder_exist and in_folder_exist:
+        logging.eror(f" {loadfrom} Cant Reocrd And Replay at the same Time")
+        return
     OUTPUT_FOLDER = dumpto
-    INPUT_FOLDER = loadfrom
+    INPUT_FILE = loadfrom
     # change event loop to 2x
     asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
     # run all operations

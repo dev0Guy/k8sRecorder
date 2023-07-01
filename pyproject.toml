@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "k8Recorder"
+name = "k8sRecorder"
 version = "0.1.0"
 description = ""
 authors = ["dev0Guy <97923827+dev0Guy@users.noreply.github.com>"]
@@ -16,7 +16,7 @@ scipy = "^1.11.1"
 uvloop = "^0.17.0"
 
 [tool.poetry.scripts]
-operators = "k8Recorder.script:run_operators"
+operators = "k8sRecorder.script:run_operators"
 
 [tool.poetry.group.dev.dependencies]
 black = "^23.3.0"
