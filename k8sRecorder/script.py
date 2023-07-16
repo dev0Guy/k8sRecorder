@@ -29,6 +29,7 @@ async def k8s_tracker_startup(logger: logging, **kwargs):
     global PROM
     PROM = PrometheusConnect(url=PROMETHEUS_URL, disable_ssl=True)
     func, func_kwargs = lambda x: x, {}
+    logger.warn(f"Running Action: {SCRIPT_ACTION}")
     # run Record/Replay
     match SCRIPT_ACTION:
         case ScriptAction.Record:
@@ -40,7 +41,10 @@ async def k8s_tracker_startup(logger: logging, **kwargs):
             }
         case ScriptAction.Replay:
             func = replay.on_start
-            func_kwargs = {}
+            func_kwargs = {
+                "path": DATA_FILE,
+                "logger": logger,
+            }
         case _:
             logger.error("NEED TOCHECK")
             return
@@ -66,6 +70,7 @@ async def k8s_tracker_cleanup(logger: logging, **kwargs):
             logger.warn("Cleanup - replay")
             await replay.on_end(
                 logger=logger,
+                path=DATA_FILE
             )
         case _:
             logger.error("SOME PROBLEM")
@@ -87,9 +92,9 @@ def run_operators(dumpto: os.PathLike, loadfrom: os.PathLike):
     # alert if file doesn't exist
     if not out_folder_exist:
         logging.warn(f" {dumpto} folder don't exist, creating it ...")
-        os.makedirs(dumpto)
-    if in_folder_exist and in_folder_exist:
-        logging.eror(f" {loadfrom} Cant Reocrd And Replay at the same Time")
+        # os.makedirs(dumpto)
+    if in_folder_exist and out_folder_exist:
+        logging.error(f" {loadfrom} Cant Reocrd And Replay at the same Time")
         return
     OUTPUT_FOLDER = dumpto
     INPUT_FILE = loadfrom

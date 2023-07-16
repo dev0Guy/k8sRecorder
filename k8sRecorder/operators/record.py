@@ -126,5 +126,3 @@ def _pod_uptime(
     min_timestamps = df.groupby(["metric_name", "pod"])["timestamp"].min()
     min_timestamps = min_timestamps.reset_index(drop=False)
     return min_timestamps
-
-####################################################################################################
